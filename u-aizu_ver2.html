@@ -902,6 +902,27 @@
                 </div>
             </div>
             
+            <!-- Control Panel Display -->
+            <div class="col-12 mb-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-cpu me-2"></i>
+                            制御盤表示
+                        </h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <canvas id="miniControlPanelCanvas" width="400" height="250" style="max-width: 100%; height: auto; border: 2px solid #374151; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);"></canvas>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                現在の制御盤状況を表示しています
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Status Information -->
             <div class="col-12 mb-4">
                 <div class="card border-0 shadow-sm">
@@ -1672,6 +1693,11 @@ function updateCurrentStatus(minute) {
         }
     });
     
+    // 制御盤も更新
+    if (drawMiniControlPanel) {
+        drawMiniControlPanel();
+    }
+    
     console.log(`=== ステータス更新完了 ===`);
 }
 
@@ -1884,9 +1910,170 @@ function loadData() {
     loadJson(date, 'Lab1');
 }
 
+// 制御盤Canvas描画関数
+function initializeMiniControlPanel() {
+    const canvas = document.getElementById('miniControlPanelCanvas');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    function drawMiniControlPanel() {
+        // キャンバスをクリア
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 制御盤の背景（グレー）
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, '#e5e7eb');
+        gradient.addColorStop(0.5, '#d1d5db');
+        gradient.addColorStop(1, '#9ca3af');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(20, 20, canvas.width - 40, canvas.height - 40);
+        
+        // 制御盤の枠
+        ctx.strokeStyle = '#374151';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+        
+        // 内側の枠
+        ctx.strokeStyle = '#6b7280';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
+        
+        // タイトル領域
+        ctx.fillStyle = '#1f2937';
+        ctx.fillRect(40, 40, canvas.width - 80, 25);
+        
+        // タイトルテキスト
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('研究室制御盤', canvas.width / 2, 55);
+        
+        // ランプ領域の背景
+        const lampAreaY = 80;
+        const lampAreaHeight = 120;
+        ctx.fillStyle = '#f3f4f6';
+        ctx.fillRect(40, lampAreaY, canvas.width - 80, lampAreaHeight);
+        ctx.strokeStyle = '#d1d5db';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(40, lampAreaY, canvas.width - 80, lampAreaHeight);
+        
+        // 3つのランプを描画
+        drawMiniLamps(ctx);
+        
+        // ラベル
+        ctx.fillStyle = '#374151';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        
+        const lampPositions = getMiniLampPositions();
+        const labels = ['左側', '中央', '右側'];
+        
+        labels.forEach((label, index) => {
+            ctx.fillText(label, lampPositions[index].x, lampPositions[index].y + 35);
+        });
+        
+        // 時刻表示領域
+        ctx.fillStyle = '#1f2937';
+        ctx.fillRect(40, canvas.height - 40, canvas.width - 80, 20);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px Courier New';
+        const timeStr = formatTime(currentMinute);
+        ctx.fillText(`現在時刻: ${timeStr}`, canvas.width / 2, canvas.height - 27);
+    }
+    
+    function getMiniLampPositions() {
+        const centerY = 140;
+        const lampSpacing = 80;
+        const startX = (canvas.width - lampSpacing * 2) / 2;
+        
+        return [
+            { x: startX, y: centerY },
+            { x: startX + lampSpacing, y: centerY },
+            { x: startX + lampSpacing * 2, y: centerY }
+        ];
+    }
+    
+    function drawMiniLamps(ctx) {
+        const positions = getMiniLampPositions();
+        const lampRadius = 18;
+        
+        positions.forEach((pos, index) => {
+            const lampStatus = getMiniLampStatus(index);
+            
+            // ランプの外枠
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, lampRadius + 3, 0, 2 * Math.PI);
+            ctx.fillStyle = '#2d3748';
+            ctx.fill();
+            
+            // ランプ本体
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, lampRadius, 0, 2 * Math.PI);
+            
+            // ステータスに応じた色
+            switch(lampStatus) {
+                case 0: // 未使用
+                    ctx.fillStyle = '#9ca3af';
+                    break;
+                case 1: // 停止中
+                    ctx.fillStyle = '#22c55e';
+                    break;
+                case 2: // 稼働中
+                    ctx.fillStyle = '#ef4444';
+                    // グロー効果
+                    ctx.shadowColor = '#ef4444';
+                    ctx.shadowBlur = 10;
+                    break;
+                case 3: // 警告
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.shadowColor = '#f59e0b';
+                    ctx.shadowBlur = 8;
+                    break;
+                default:
+                    ctx.fillStyle = '#9ca3af';
+            }
+            
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // ランプのハイライト
+            const highlightGradient = ctx.createRadialGradient(
+                pos.x - 5, pos.y - 5, 0,
+                pos.x - 5, pos.y - 5, lampRadius
+            );
+            highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+            highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, lampRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = highlightGradient;
+            ctx.fill();
+        });
+    }
+    
+    function getMiniLampStatus(lampIndex) {
+        if (!currentData || !currentData.data_lists[lampIndex]) {
+            return 0;
+        }
+        return currentData.data_lists[lampIndex][currentMinute]?.color || 0;
+    }
+    
+    // 描画関数を返す
+    return drawMiniControlPanel;
+}
+
+// グローバル制御盤描画関数
+let drawMiniControlPanel = null;
+
 // ページ読み込み時の初期化
 window.addEventListener('load', function() {
     console.log("🌐 ページ読み込み完了");
+    
+    // 制御盤の初期化
+    drawMiniControlPanel = initializeMiniControlPanel();
     
     // 可視化タイプ切り替えのセットアップ
     document.querySelectorAll('input[name="vizType"]').forEach(radio => {
